@@ -5,6 +5,7 @@ import { BackendServerDetails } from './backend-server-details.ts';
 import { HttpClient } from './utils/http-client.ts';
 import { ILbAlgorithm } from './lb-algos/lb-algo.interface.ts';
 import { FallbackAlgo } from './lb-algos/fallback-algo.ts';
+import { RoundRobin } from './lb-algos/rr.ts';
 
 
 export class LBServer {
@@ -29,12 +30,11 @@ export class LBServer {
 
         //Strategy Pattern Assignment based on Config selection
         switch (config.lbAlgo) {
-            case 'rand':
             case 'rr':
-            case 'wrr':
-                // For now, all point to our fallback strategy wrapper structure
-                this.lbAlgoStrategy = new FallbackAlgo(this.backendServers);
+                this.lbAlgoStrategy = new RoundRobin(this.backendServers);
                 break;
+            case 'rand':
+            case 'wrr':
             default:
                 this.lbAlgoStrategy = new FallbackAlgo(this.backendServers);
         }

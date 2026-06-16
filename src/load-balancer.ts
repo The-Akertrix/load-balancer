@@ -3,13 +3,16 @@ import { Server } from 'http';
 import { Config } from './utils/config.ts';
 import { BackendServerDetails } from './backend-server-details.ts';
 import { HttpClient } from './utils/http-client.ts';
+import { ILbAlgorithm } from './lb-algos/lb-algo.interface.ts';
+import { FallbackAlgo } from './lb-algos/fallback-algo.ts';
 
 
 export class LBServer {
     public app: Express;
     public server: Server | undefined;
     public backendServers: BackendServerDetails[];
-
+    private lbAlgoStrategy: ILbAlgorithm;
+    
     constructor() {
         Config.load();
         const config = Config.getConfig();
@@ -24,6 +27,18 @@ export class LBServer {
             (server) => new BackendServerDetails(server.domain, server.weight)
         );
 
+        //Strategy Pattern Assignment based on Config selection
+        switch (config.lbAlgo) {
+            case 'rand':
+            case 'rr':
+            case 'wrr':
+                // For now, all point to our fallback strategy wrapper structure
+                this.lbAlgoStrategy = new FallbackAlgo(this.backendServers);
+                break;
+            default:
+                this.lbAlgoStrategy = new FallbackAlgo(this.backendServers);
+        }
+
         this.app.get('/', (_req, res, next) => {
             if (_req.path === '/') {
                 return res.send('Load Balancer v1.0');
@@ -32,32 +47,32 @@ export class LBServer {
         });
 
         this.app.use(async (req, res) => {
-            if (this.backendServers.length === 0) {
-                return res.status(500).send('No backend servers configured.');
-            }
-
-            const targetServer = this.backendServers[0];
-
-            targetServer.incrementRequestsServed();
-
-            const targetUrl = `${targetServer.url}${req.url}`;
-
-            const forwardedHeaders = { ...req.headers };
-            delete forwardedHeaders.host; 
-
             try {
+                // Select the next server using the strategy pattern contract
+                const targetServer = this.lbAlgoStrategy.nextServer();
+
+                // Update stats immediately upon choosing the instance
+                targetServer.incrementRequestsServed();
+
+                // Construct full forwarding URL path
+                const targetUrl = `${targetServer.url}${req.url}`;
+
+                // Clean up headers to avoid Host mismatch or proxy loops
+                const forwardedHeaders = { ...req.headers };
+                delete forwardedHeaders.host; 
+
+                // Forward the request using our manual, custom resilient HttpClient
                 const response = await HttpClient.request({
                     method: req.method,
                     url: targetUrl,
                     headers: forwardedHeaders,
                     data: ['POST', 'PUT', 'PATCH'].includes(req.method) ? req.body : undefined,
-                    // Avoid axios throwing on non-2xx statuses so we can pipe the downstream status cleanly
                     validateStatus: () => true, 
                 });
 
+                // Reply back to the original client
                 res.status(response.status);
                 
-                // Set downstream headers safely
                 Object.entries(response.headers).forEach(([key, value]) => {
                     if (value !== undefined) {
                         res.setHeader(key, String(value));
@@ -67,8 +82,7 @@ export class LBServer {
                 return res.send(response.data);
 
             } catch (error) {
-                // Graceful Error Handling for dropped connection blocks or 500 errors
-                console.error(`Proxy forwarding failed to ${targetUrl}:`, (error as Error).message);
+                console.error(`Proxy forwarding failure:`, (error as Error).message);
                 return res.status(500).send('Internal Server Error (Proxy Failure)');
             }
         });

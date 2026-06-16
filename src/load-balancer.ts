@@ -6,7 +6,7 @@ import { HttpClient } from './utils/http-client.ts';
 import { ILbAlgorithm } from './lb-algos/lb-algo.interface.ts';
 import { FallbackAlgo } from './lb-algos/fallback-algo.ts';
 import { RoundRobin } from './lb-algos/rr.ts';
-
+import { WeightedRoundRobin } from './lb-algos/wrr.ts';
 
 export class LBServer {
     public app: Express;
@@ -35,6 +35,8 @@ export class LBServer {
                 break;
             case 'rand':
             case 'wrr':
+                this.lbAlgoStrategy = new WeightedRoundRobin(this.backendServers);
+                break;
             default:
                 this.lbAlgoStrategy = new FallbackAlgo(this.backendServers);
         }

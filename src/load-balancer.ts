@@ -7,12 +7,16 @@ import { ILbAlgorithm } from './lb-algos/lb-algo.interface.ts';
 import { FallbackAlgo } from './lb-algos/fallback-algo.ts';
 import { RoundRobin } from './lb-algos/rr.ts';
 import { WeightedRoundRobin } from './lb-algos/wrr.ts';
+import { HealthCheck } from './utils/health-check.ts';
 
 export class LBServer {
     public app: Express;
     public server: Server | undefined;
     public backendServers: BackendServerDetails[];
     private lbAlgoStrategy: ILbAlgorithm;
+    private healthChecker: HealthCheck;
+    private healthyServers : BackendServerDetails[];
+
     
     constructor() {
         Config.load();
@@ -27,7 +31,10 @@ export class LBServer {
         this.backendServers = config.be_servers.map(
             (server) => new BackendServerDetails(server.domain, server.weight)
         );
+        this.healthyServers = [];
 
+        this.healthChecker = new HealthCheck(this.backendServers, this.healthyServers);
+        
         //Strategy Pattern Assignment based on Config selection
         switch (config.lbAlgo) {
             case 'rr':

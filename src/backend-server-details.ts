@@ -11,6 +11,8 @@ export interface IBackendServerDetails {
     //Metrics 
     incrementRequestsServed() : void;
     resetMetrics() : void;
+
+    ping() : Promise<boolean>;
 }
 
 
@@ -48,9 +50,9 @@ export class BackendServerDetails implements IBackendServerDetails {
 
     async ping() : Promise<boolean> {
         try{
-            const response = await HttpClient.get(`${this.url}/ping`);
+            const response = await axios.get(`${this.url}/ping`, { timeout: 50 });
             //treat only 200 as helath
-            if(response.status >= 200 && response.status) {
+            if(response.status >= 200 && response.status < 300) {
                 this.setStatus(BEServerHealth.HEALTHY);
                 return true;
             }

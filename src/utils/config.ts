@@ -10,9 +10,11 @@ export interface IBackendServerConfig {
 
 //type for all app config
 export interface IConfig {
+    health_check_interval: number;
     lbPORT : number;
     lbAlgo : "rand" |  "rr" | "wrr";
     be_servers : IBackendServerConfig[];
+    health_check_interval? : number;
 }
 
 export class Config {
@@ -28,7 +30,8 @@ export class Config {
                 domain : Joi.string().uri().required(),
                 weight : Joi.number().integer().positive().required()
             })
-        ).min(1).required()
+        ).min(1).required(),
+        health_check_interval : Joi.number().integer().positive().optional()   //Validated field
     }).required();
 
     public static load(configPath = "./config.json") : void {

@@ -33,8 +33,9 @@ export class LBServer {
         );
         this.healthyServers = [];
 
+        const intervalMs = (config.health_check_interval ?? 1) * 1000;
         this.healthChecker = new HealthCheck(this.backendServers, this.healthyServers);
-        
+
         //Strategy Pattern Assignment based on Config selection
         switch (config.lbAlgo) {
             case 'rr':
@@ -107,6 +108,18 @@ export class LBServer {
         this.server = this.app.listen(PORT, () => {
             console.log(`load balancer running on port ${PORT} using ${config.lbAlgo} algorithm`);
             console.log(`initialised backend serverrs : ${this.backendServers.length}`);
+        });
+
+        this.healthChecker.start();
+
+        process.on('SIGTERM', () => {
+            this.healthChecker.stop();
+            this.server?.close();
+        });
+
+        process.on('SIGINT', () => {
+            this.healthChecker.stop();
+            this.server?.close();
         });
     }
 }

@@ -1,6 +1,7 @@
 {
   "lbPORT": 7010,
   "lbAlgo": "rr",
+  "health_check_interval": 1,
   "be_servers": [
     {
       "domain": "http://localhost:8081",

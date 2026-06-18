@@ -1,10 +1,10 @@
-import { server } from "typescript";
+import { BEServerHealth } from "./enums.ts";
 import { BackendServerDetails } from "../backend-server-details.ts"
 
 export class HealthCheck {
     public allServers : BackendServerDetails[];
     public healthyServers : BackendServerDetails[];
-    private intervalId : ReturnType<typeof setInterval> | undefinded;
+    private intervalId : ReturnType<typeof setInterval> | undefined
     private checkInterval : number;
 
     constructor(
@@ -17,9 +17,21 @@ export class HealthCheck {
         this.checkInterval = checkInterval;
     }
 
+    public updateHealthyServers(): void {
+        this.healthyServers.length = 0;
+
+        this.allServers.forEach((server) => {
+            if (server.getStatus() === BEServerHealth.HEALTHY) {
+                this.healthyServers.push(server);
+            }
+        });
+    }  
+
     public start(): void {
         const runChecks = () => {
             this.allServers.forEach((server) => server.ping());
+
+            this.updateHealthyServers();
         };
 
         runChecks(); // immediate

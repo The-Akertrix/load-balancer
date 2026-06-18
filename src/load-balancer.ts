@@ -39,14 +39,14 @@ export class LBServer {
         //Strategy Pattern Assignment based on Config selection
         switch (config.lbAlgo) {
             case 'rr':
-                this.lbAlgoStrategy = new RoundRobin(this.backendServers);
+                this.lbAlgoStrategy = new RoundRobin(this.healthyServers); // Pass healthy pool reference
+                break;
+            case 'wrr':
+                this.lbAlgoStrategy = new WeightedRoundRobin(this.healthyServers); // Pass healthy pool reference
                 break;
             case 'rand':
-            case 'wrr':
-                this.lbAlgoStrategy = new WeightedRoundRobin(this.backendServers);
-                break;
             default:
-                this.lbAlgoStrategy = new FallbackAlgo(this.backendServers);
+                this.lbAlgoStrategy = new FallbackAlgo(this.healthyServers); // Pass healthy pool reference
         }
 
         this.app.get('/', (_req, res, next) => {

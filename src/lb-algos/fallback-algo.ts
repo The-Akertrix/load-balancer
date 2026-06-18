@@ -2,17 +2,17 @@ import { BackendServerDetails } from "../backend-server-details.ts";
 import { ILbAlgorithm } from "./lb-algo.interface.ts";
 
 export class FallbackAlgo implements ILbAlgorithm {
-    private servers: BackendServerDetails[];
+    private healthyServers: BackendServerDetails[];
 
-    constructor(servers: BackendServerDetails[]) {
-        this.servers = servers;
+    constructor(healthyServers: BackendServerDetails[]) {
+        this.healthyServers = healthyServers;
     }
 
     public nextServer(): BackendServerDetails {
-        if (this.servers.length === 0) {
+        if (this.healthyServers.length === 0) {
             throw new Error("No backend servers available in pool.");
         }
         // Fallback strategy: return the first server
-        return this.servers[0];
+        return this.healthyServers[0];
     }
 }

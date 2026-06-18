@@ -27,14 +27,22 @@ export class HealthCheck {
         });
     }  
 
-    public start(): void {
-        const runChecks = () => {
-            this.allServers.forEach((server) => server.ping());
+    public handleFailure(server: BackendServerDetails): void {
+        server.setStatus(BEServerHealth.UNHEALTHY);
+        const index = this.healthyServers.indexOf(server);
+        if (index !== -1) {
+            this.healthyServers.splice(index, 1);
+        }
+        process.stdout.write(`passive health check failed: ${server.url} marked UNHEALTHY\n`);
+    }
 
+    public start(): void {
+        const runChecks = async () => {
+            await Promise.all(this.allServers.map((server) => server.ping()));
             this.updateHealthyServers();
         };
 
-        runChecks(); // immediate
+        runChecks();
         this.intervalId = setInterval(runChecks, this.checkInterval);
     }
 

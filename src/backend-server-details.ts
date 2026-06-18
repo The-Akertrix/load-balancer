@@ -1,3 +1,4 @@
+import axios from "axios";
 import { BEServerHealth } from "./utils/enums.ts";
 import { HttpClient } from "./utils/http-client.ts";
 

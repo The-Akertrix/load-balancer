@@ -9,12 +9,11 @@ export interface IBackendServerConfig {
 }
 
 //type for all app config
-export interface IConfig {
-    health_check_interval: number;
+export interface IConfig  {
     lbPORT : number;
-    lbAlgo : "rand" |  "rr" | "wrr";
+    lbAlgo : "rand" | "rr" | "wrr";
     be_servers : IBackendServerConfig[];
-    health_check_interval? : number;
+    health_check_interval?: number;
 }
 
 export class Config {

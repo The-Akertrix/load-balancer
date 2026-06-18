@@ -1,4 +1,5 @@
 import express, { Express } from 'express';
+import axios from 'axios';
 import { Server } from 'http';
 import { Config } from './utils/config.ts';
 import { BackendServerDetails } from './backend-server-details.ts';
@@ -8,6 +9,9 @@ import { FallbackAlgo } from './lb-algos/fallback-algo.ts';
 import { RoundRobin } from './lb-algos/rr.ts';
 import { WeightedRoundRobin } from './lb-algos/wrr.ts';
 import { HealthCheck } from './utils/health-check.ts';
+
+const ProxyClient = axios.create({ timeout: 5000 });
+const MAX__RETRIES = 3;
 
 export class LBServer {
     public app: Express;
@@ -34,7 +38,11 @@ export class LBServer {
         this.healthyServers = [];
 
         const intervalMs = (config.health_check_interval ?? 1) * 1000;
-        this.healthChecker = new HealthCheck(this.backendServers, this.healthyServers);
+        this.healthChecker = new HealthCheck(
+            this.backendServers,
+            this.healthyServers,
+            intervalMs
+        );
 
         //Strategy Pattern Assignment based on Config selection
         switch (config.lbAlgo) {
@@ -56,6 +64,8 @@ export class LBServer {
             next();
         });
 
+        // ALL requests go through proxy — no special root route
+        // This ensures passive health checks fire for every failed request
         this.app.use(async (req, res) => {
             try {
                 // Select the next server using the strategy pattern contract

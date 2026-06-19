@@ -3,7 +3,6 @@ import axios from 'axios';
 import { Server } from 'http';
 import { Config } from './utils/config.ts';
 import { BackendServerDetails } from './backend-server-details.ts';
-import { HttpClient } from './utils/http-client.ts';
 import { ILbAlgorithm } from './lb-algos/lb-algo.interface.ts';
 import { FallbackAlgo } from './lb-algos/fallback-algo.ts';
 import { RoundRobin } from './lb-algos/rr.ts';
@@ -18,8 +17,8 @@ export class LBServer {
     public server: Server | undefined;
     public backendServers: BackendServerDetails[];
     private lbAlgoStrategy: ILbAlgorithm;
-    private healthChecker: HealthCheck;
-    private healthyServers : BackendServerDetails[];
+    public healthChecker: HealthCheck;
+    public healthyServers : BackendServerDetails[];
 
     
     constructor() {
@@ -136,6 +135,10 @@ export class LBServer {
 
         this.healthChecker.start();
 
+        // Stats printer — refreshes every 5 seconds
+        this.printStats();
+        setInterval(() => this.printStats(), 5000);
+
         process.on('SIGTERM', () => {
             this.healthChecker.stop();
             this.server?.close();
@@ -145,5 +148,22 @@ export class LBServer {
             this.healthChecker.stop();
             this.server?.close();
         });
+    }
+
+
+    public printStats(): void {
+        console.clear();
+        console.log(`=== Load Balancer Stats ===`);
+        console.log(`Time: ${new Date().toISOString()}`);
+        console.log(`Algorithm: ${Config.getConfig().lbAlgo}`);
+        console.log(`Healthy Servers: ${this.healthyServers.length}/${this.backendServers.length}`);
+        console.log('');
+        const stats = this.backendServers.map(s => ({
+            URL: s.url,
+            Status: s.getStatus(),
+            Requests: s.requestsServedCount,
+            Weight: s.serverWeight
+        }));
+        console.table(stats);
     }
 }

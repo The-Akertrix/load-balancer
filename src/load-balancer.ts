@@ -11,7 +11,7 @@ import { WeightedRoundRobin } from './lb-algos/wrr.ts';
 import { HealthCheck } from './utils/health-check.ts';
 
 const ProxyClient = axios.create({ timeout: 5000 });
-const MAX__RETRIES = 3;
+const MAX_RETRIES = 3;
 
 export class LBServer {
     public app: Express;
@@ -57,54 +57,68 @@ export class LBServer {
                 this.lbAlgoStrategy = new FallbackAlgo(this.healthyServers); // Pass healthy pool reference
         }
 
-        this.app.get('/', (_req, res, next) => {
-            if (_req.path === '/') {
-                return res.send('Load Balancer v1.0');
-            }
-            next();
-        });
 
         // ALL requests go through proxy — no special root route
-        // This ensures passive health checks fire for every failed request
         this.app.use(async (req, res) => {
-            try {
-                // Select the next server using the strategy pattern contract
-                const targetServer = this.lbAlgoStrategy.nextServer();
+            let lastError: any;
 
-                // Update stats immediately upon choosing the instance
-                targetServer.incrementRequestsServed();
+            for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+                let targetServer: BackendServerDetails | undefined;
 
-                // Construct full forwarding URL path
-                const targetUrl = `${targetServer.url}${req.url}`;
+                try {
+                    // Pick from healthyServers if available, else fall back to full pool
+                    const pool = this.healthyServers.length > 0
+                        ? this.healthyServers
+                        : this.backendServers;
 
-                // Clean up headers to avoid Host mismatch or proxy loops
-                const forwardedHeaders = { ...req.headers };
-                delete forwardedHeaders.host; 
-
-                // Forward the request using our manual, custom resilient HttpClient
-                const response = await HttpClient.request({
-                    method: req.method,
-                    url: targetUrl,
-                    headers: forwardedHeaders,
-                    data: ['POST', 'PUT', 'PATCH'].includes(req.method) ? req.body : undefined,
-                    validateStatus: () => true, 
-                });
-
-                // Reply back to the original client
-                res.status(response.status);
-                
-                Object.entries(response.headers).forEach(([key, value]) => {
-                    if (value !== undefined) {
-                        res.setHeader(key, String(value));
+                    if (pool.length === 0) {
+                        return res.status(503).send('No servers available');
                     }
-                });
 
-                return res.send(response.data);
+                    targetServer = pool[0];
+                    targetServer.incrementRequestsServed();
 
-            } catch (error) {
-                console.error(`Proxy forwarding failure:`, (error as Error).message);
-                return res.status(500).send('Internal Server Error (Proxy Failure)');
+                    const targetUrl = `${targetServer.url}${req.url}`;
+                    const forwardedHeaders = { ...req.headers };
+                    delete forwardedHeaders.host;
+
+                    const response = await ProxyClient.request({
+                        method: req.method,
+                        url: targetUrl,
+                        headers: forwardedHeaders,
+                        data: ['POST', 'PUT', 'PATCH'].includes(req.method)
+                            ? req.body
+                            : undefined,
+                        validateStatus: (status) => status < 500,
+                    });
+
+                    // Success — send response and stop retrying
+                    res.status(response.status);
+                    Object.entries(response.headers).forEach(([key, value]) => {
+                        if (value !== undefined) {
+                            res.setHeader(key, String(value));
+                        }
+                    });
+                    return res.send(response.data);
+
+                } catch (error: any) {
+                    lastError = error;
+
+                    if (targetServer) {
+                        // Passive check — mark failed server unhealthy immediately
+                        process.stdout.write(`passive health check failed: ${targetServer.url} marked UNHEALTHY\n`);
+                        this.healthChecker.handleFailure(targetServer);
+                    }
+
+                    // Continue loop — next iteration picks a different server
+                    // because failed server is now removed from healthyServers
+                    console.log(`Retry attempt ${attempt + 1} failed, trying next server...`);
+                }
             }
+
+            // All retries exhausted
+            console.log(`All ${MAX_RETRIES} retry attempts failed`);
+            return res.status(500).send('Internal Server Error (All retries failed)');
         });
     }
 

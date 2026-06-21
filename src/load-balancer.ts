@@ -140,13 +140,19 @@ export class LBServer {
         setInterval(() => this.printStats(), 5000);
 
         process.on('SIGTERM', () => {
+            console.log('Received signal, shutting down...');
             this.healthChecker.stop();
-            this.server?.close();
+            this.server?.close(() => {
+                process.exit(0);
+            });
         });
 
         process.on('SIGINT', () => {
+            console.log('Received signal, shutting down...');
             this.healthChecker.stop();
-            this.server?.close();
+            this.server?.close(() => {
+                process.exit(0);
+            });
         });
     }
 

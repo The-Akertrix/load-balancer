@@ -8,12 +8,19 @@ export interface IBackendServerConfig {
     weight : number;
 }
 
+export interface ISSLConfig {
+    enabled: boolean;
+    key_path: string;
+    cert_path: string;
+}
+
 //type for all app config
 export interface IConfig  {
     lbPORT : number;
     lbAlgo : "rand" | "rr" | "wrr";
     be_servers : IBackendServerConfig[];
     health_check_interval?: number;
+    ssl?: ISSLConfig;
 }
 
 export class Config {
@@ -30,7 +37,12 @@ export class Config {
                 weight : Joi.number().integer().positive().required()
             })
         ).min(1).required(),
-        health_check_interval : Joi.number().integer().positive().optional()   //Validated field
+        health_check_interval : Joi.number().integer().positive().optional(),  //Validated field
+        ssl: Joi.object({
+            enabled: Joi.boolean().required(),
+            key_path: Joi.string().required(),
+            cert_path: Joi.string().required()
+        }).optional()
     }).required();
 
     public static load(configPath = "./config.json") : void {

@@ -1,3 +1,7 @@
+import http from 'http';
+import https from 'https';
+import fs from 'fs';
+import path from 'path';
 import express, { Express } from 'express';
 import axios from 'axios';
 import { Server } from 'http';
@@ -128,14 +132,21 @@ export class LBServer {
         const config = Config.getConfig();
         const PORT = config.lbPORT;
 
-        this.server = this.app.listen(PORT, () => {
-            console.log(`load balancer running on port ${PORT} using ${config.lbAlgo} algorithm`);
-            console.log(`initialised backend serverrs : ${this.backendServers.length}`);
-        });
+        if (config.ssl?.enabled) {
+            const key = fs.readFileSync(path.resolve(process.cwd(), config.ssl.key_path));
+            const cert = fs.readFileSync(path.resolve(process.cwd(), config.ssl.cert_path));
+            this.server = https.createServer({ key, cert }, this.app).listen(PORT, () => {
+                console.log(`load balancer running on port ${PORT} using ${config.lbAlgo} algorithm (HTTPS)`);
+                console.log(`initialised backend serverrs : ${this.backendServers.length}`);
+            });
+        } else {
+            this.server = http.createServer(this.app).listen(PORT, () => {
+                console.log(`load balancer running on port ${PORT} using ${config.lbAlgo} algorithm`);
+                console.log(`initialised backend serverrs : ${this.backendServers.length}`);
+            });
+        }
 
         this.healthChecker.start();
-
-        // Stats printer — refreshes every 5 seconds
         this.printStats();
         setInterval(() => this.printStats(), 5000);
 

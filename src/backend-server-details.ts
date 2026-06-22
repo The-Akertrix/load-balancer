@@ -1,4 +1,3 @@
-import axios from "axios";
 import { BEServerHealth } from "./utils/enums.ts";
 import { HttpClient } from "./utils/http-client.ts";
 
@@ -51,7 +50,7 @@ export class BackendServerDetails implements IBackendServerDetails {
 
     async ping() : Promise<boolean> {
         try{
-            const response = await axios.get(`${this.url}/ping`, { timeout: 50 });
+            const response = await HttpClient.get(`${this.url}/ping`, { timeout: 50 });
             //treat only 200 as helath
             if(response.status >= 200 && response.status < 300) {
                 this.setStatus(BEServerHealth.HEALTHY);

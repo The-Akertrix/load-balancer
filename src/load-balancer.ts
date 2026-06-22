@@ -13,6 +13,17 @@ import { RoundRobin } from './lb-algos/rr.ts';
 import { WeightedRoundRobin } from './lb-algos/wrr.ts';
 import { HealthCheck } from './utils/health-check.ts';
 
+export const HOP_BY_HOP_HEADERS = new Set([
+    'transfer-encoding',
+    'connection',
+    'keep-alive',
+    'proxy-authenticate',
+    'proxy-authorization',
+    'te',
+    'trailer',
+    'upgrade'
+]);
+
 const ProxyClient = axios.create({ timeout: 5000 });
 const MAX_RETRIES = 3;
 
@@ -78,7 +89,9 @@ export class LBServer {
                         return res.status(503).send('No servers available');
                     }
 
-                    targetServer = pool[0];
+                    targetServer = this.healthyServers.length > 0
+                        ? this.lbAlgoStrategy.nextServer()
+                        : pool[0];
                     targetServer.incrementRequestsServed();
 
                     const targetUrl = `${targetServer.url}${req.url}`;
@@ -98,7 +111,7 @@ export class LBServer {
                     // Success — send response and stop retrying
                     res.status(response.status);
                     Object.entries(response.headers).forEach(([key, value]) => {
-                        if (value !== undefined) {
+                        if (value !== undefined && !HOP_BY_HOP_HEADERS.has(key.toLowerCase())) {
                             res.setHeader(key, String(value));
                         }
                     });

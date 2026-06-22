@@ -12,7 +12,8 @@ export class FallbackAlgo implements ILbAlgorithm {
         if (this.healthyServers.length === 0) {
             throw new Error("No backend servers available in pool.");
         }
-        // Fallback strategy: return the first server
-        return this.healthyServers[0];
+
+        const index = Math.floor(Math.random() * this.healthyServers.length);
+        return this.healthyServers[index];
     }
 }
